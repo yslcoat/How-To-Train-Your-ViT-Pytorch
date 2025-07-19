@@ -27,11 +27,8 @@ from utils.data_utils import build_data_loaders
 from input_parser import build_config
 from metrics import accuracy
 from models import (
-    MODEL_REGISTRY,
     create_model
 )
-from augmentations import MixUpCollator
-from utils.data_utils import ImageNetDataset
 
 logger = logging.getLogger()
 best_acc1 = 0

@@ -29,8 +29,8 @@ class ImageNetDataset(Dataset):
     └── val/
     """
     def __init__(self, root_dir: str, partition:str='train', transform=None) -> None:
-        self.targ_dir = os.path.join(root_dir, partition)
-        self.paths = list(pathlib.Path(self.targ_dir).glob("*/*.jpeg"))
+        self.targ_dir = pathlib.Path(os.path.join(root_dir, partition))
+        self.paths = [f for f in self.targ_dir.rglob('*') if f.suffix.lower() in ['.jpg', '.png', '.jpeg']]
         self.readable_classes_dict = extract_readable_imagenet_labels(os.path.join(root_dir, 'LOC_synset_mapping.txt'))
         self.transform = transform
         self.classes, self.class_to_idx = find_classes(self.targ_dir, self.readable_classes_dict)

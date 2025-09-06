@@ -17,9 +17,11 @@ from utils.training_utils import (
 )
 
 class Trainer():
-    def __init__(self):
-        pass
+    def __init__(self, args, model):
+        self.args = args
+        self.model = model
 
+        self.schedulers = []
 
     def train_epoch(self, train_loader: torch.utils.data.DataLoader, model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler, epoch: int, device, args: argparse.ArgumentParser):
         use_accel = not args.no_accel and torch.accelerator.is_available()
@@ -66,6 +68,10 @@ class Trainer():
 
             if i % args.print_freq == 0:
                 progress.display(i + 1)
+
+
+    def add_scheduler(self, scheduler):
+        self.schedulers.append(scheduler)
 
 
     def validate(self, val_loader: torch.utils.data.DataLoader, model: torch.nn.Module, criterion: torch.nn.Module, args: argparse.ArgumentParser):
@@ -117,6 +123,7 @@ class Trainer():
         model.eval()
 
         run_validate(val_loader)
+
         if args.distributed:
             top1.all_reduce()
             top5.all_reduce()
@@ -155,3 +162,23 @@ class Trainer():
                     'optimizer' : self.optimizer.state_dict(),
                     'scheduler' : self.scheduler.state_dict()
                 }, is_best)
+
+    def load_model_checkpoint(self):
+        if os.path.isfile(self.args.resume):
+            logging.info("=> loading checkpoint '{}'".format(self.args.resume))
+            if self.args.gpu is None:
+                checkpoint = torch.load(self.args.resume)
+            else:
+                loc = f'{self.device.type}:{self.args.gpu}'
+                checkpoint = torch.load(self.args.resume, map_location=loc)
+            self.args.start_epoch = checkpoint['epoch']
+            best_acc1 = checkpoint['best_acc1']
+            if self.args.gpu is not None:
+                best_acc1 = best_acc1.to(self.args.gpu)
+            self.model.load_state_dict(checkpoint['state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.scheduler.load_state_dict(checkpoint['scheduler'])
+            logging.info("=> loaded checkpoint '{}' (epoch {})"
+                  .format(self.args.resume, checkpoint['epoch']))
+        else:
+            logging.info("=> no checkpoint found at '{}'".format(self.args.resume))

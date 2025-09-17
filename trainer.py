@@ -16,14 +16,14 @@ from utils.training_utils import (
     Summary
 )
 
-class Trainer():
-    def __init__(self, args, model):
+class ImageNet1kClassificationTrainer():
+    def __init__(self, args, model, device):
         self.args = args
+        self.schedulers = []
+        self.device = device
         self.model = model
 
-        self.schedulers = []
-
-    def train_epoch(self, train_loader: torch.utils.data.DataLoader, model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler, epoch: int, device, args: argparse.ArgumentParser):
+    def train_epoch(self, train_loader: torch.utils.data.DataLoader, model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler, epoch: int, args: argparse.ArgumentParser):
         use_accel = not args.no_accel and torch.accelerator.is_available()
 
         batch_time = AverageMeter('Time', use_accel, ':6.3f', Summary.NONE)
@@ -48,7 +48,6 @@ class Trainer():
             output = model(images)
             loss = criterion(output, target)
 
-            # select dominant label for accuracy calculation when using mixup
             if args.mixup:
                 target = target.argmax(dim=1)
 

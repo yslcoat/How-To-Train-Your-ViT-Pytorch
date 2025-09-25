@@ -16,9 +16,6 @@ from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 from torch.utils.data import Subset
 
 from utils.training_utils import (
-    AverageMeter,
-    ProgressMeter,
-    Summary,
     save_checkpoint,
     load_checkpoint,
 )
@@ -26,6 +23,7 @@ from model_utils import configure_multi_gpu_model
 from utils.data_utils import build_data_loaders
 from input_parser import build_config
 from metrics import accuracy
+from metrics_utils import MetricsEngine
 from models import create_model
 
 logger = logging.getLogger()
@@ -139,6 +137,8 @@ def main_worker(gpu, ngpus_per_node, args):
         milestones=[args.warmup_period],
     )
 
+    metrics_engine = MetricsEngine(use_accel)
+
     if args.resume:
         load_checkpoint(args, device, model, optimizer, scheduler)
 
@@ -150,7 +150,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
-        train(train_loader, model, criterion, optimizer, scheduler, epoch, device, args)
+        train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, epoch, device, args)
 
         acc1 = validate(val_loader, model, criterion, args)
 
@@ -173,26 +173,15 @@ def main_worker(gpu, ngpus_per_node, args):
             )
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, device, args):
-
-    use_accel = not args.no_accel and torch.accelerator.is_available()
-
-    batch_time = AverageMeter("Time", use_accel, ":6.3f", Summary.NONE)
-    data_time = AverageMeter("Data", use_accel, ":6.3f", Summary.NONE)
-    losses = AverageMeter("Loss", use_accel, ":.4e", Summary.NONE)
-    top1 = AverageMeter("Acc@1", use_accel, ":6.2f", Summary.NONE)
-    top5 = AverageMeter("Acc@5", use_accel, ":6.2f", Summary.NONE)
-    progress = ProgressMeter(
-        len(train_loader),
-        [batch_time, data_time, losses, top1, top5],
-        prefix="Epoch: [{}]".format(epoch),
-    )
+def train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, epoch, device, args):
+    metrics_engine.reset_metrics()
+    metrics_engine.configure_progress_meter(len(train_loader), epoch)
 
     model.train()
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
-        data_time.update(time.time() - end)
+        metrics_engine.data_time.update(time.time() - end)
 
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
@@ -204,10 +193,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, device, a
         if args.mixup:
             target = target.argmax(dim=1)
 
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), images.size(0))
-        top1.update(acc1[0], images.size(0))
-        top5.update(acc5[0], images.size(0))
+        metrics_engine.calculate_task_spesific_metrics(output, target)
+        metrics_engine.losses.update(loss.item(), images.size(0))
 
         optimizer.zero_grad()
         loss.backward()
@@ -215,11 +202,11 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, device, a
 
         scheduler.step()
 
-        batch_time.update(time.time() - end)
+        metrics_engine.batch_time.update(time.time() - end)
         end = time.time()
 
         if i % args.print_freq == 0:
-            progress.display(i + 1)
+            metrics_engine.progress.display(i + 1)
 
 
 def validate(val_loader, model, criterion, args):

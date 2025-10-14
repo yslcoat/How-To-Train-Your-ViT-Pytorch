@@ -1,5 +1,4 @@
 from enum import Enum
-import pandas as pd
 from collections import defaultdict
 
 import torch
@@ -89,8 +88,8 @@ class ProgressMeter(object):
         return "[" + fmt + "/" + fmt.format(num_batches) + "]"
 
 
-class MetricsEngine():
-    def __init__(self, use_accel, args=None):
+class MetricsEngine:
+    def __init__(self, use_accel):
         self.batch_time = AverageMeter("Time", use_accel, ":6.3f", Summary.NONE)
         self.data_time = AverageMeter("Data", use_accel, ":6.3f", Summary.NONE)
         self.losses = AverageMeter("Loss", use_accel, ":.4e", Summary.NONE)
@@ -107,7 +106,7 @@ class MetricsEngine():
             prefix = "Training Epoch: [{}]".format(epoch)
         elif self.mode == "validate":
             prefix = "Validate Epoch: [{}]".format(epoch)
-        else: 
+        else:
             prefix = "Test: "
 
         self.progress = ProgressMeter(
@@ -118,12 +117,12 @@ class MetricsEngine():
 
     def set_mode(self, mode):
         self.mode = mode
-        if mode == 'train':
-            self.top1.summary_type=Summary.NONE
-            self.top5.summary_type=Summary.NONE
-        elif mode == 'validate':
-            self.top1.summary_type=Summary.AVERAGE
-            self.top5.summary_type=Summary.AVERAGE
+        if mode == "train":
+            self.top1.summary_type = Summary.NONE
+            self.top5.summary_type = Summary.NONE
+        elif mode == "validate":
+            self.top1.summary_type = Summary.AVERAGE
+            self.top5.summary_type = Summary.AVERAGE
 
     def reset_metrics(self):
         self.batch_time.reset()
@@ -133,38 +132,33 @@ class MetricsEngine():
         self.top5.reset()
 
     def update_batch(self, data_time, loss, batch_time, output, target):
-        self.batch_history['mode'].append(self.mode)
+        self.batch_history["mode"].append(self.mode)
 
         self.data_time.update(data_time)
-        self.batch_history['data_time'].append(self.data_time.val)
-        self.batch_history['data_time_avg'].append(self.data_time.avg)
+        self.batch_history["data_time"].append(self.data_time.val)
+        self.batch_history["data_time_avg"].append(self.data_time.avg)
 
         self.losses.update(loss, output.size(0))
-        self.batch_history['loss'].append(self.losses.val)
-        self.batch_history['loss_avg'].append(self.losses.avg)
+        self.batch_history["loss"].append(self.losses.val)
+        self.batch_history["loss_avg"].append(self.losses.avg)
 
         self.batch_time.update(batch_time)
-        self.batch_history['batch_time'].append(self.batch_time.val)
-        self.batch_history['batch_time_avg'].append(self.batch_time.val)
+        self.batch_history["batch_time"].append(self.batch_time.val)
+        self.batch_history["batch_time_avg"].append(self.batch_time.val)
 
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         self.top1.update(acc1[0], output.size(0))
         self.top5.update(acc5[0], output.size(0))
-        self.batch_history['top1_accuracy'].append(self.top1.val)
-        self.batch_history['top1_accuracy_avg'].append(self.top1.avg)
-        self.batch_history['top5_accuracy'].append(self.top5.val)
-        self.batch_history['top5_accuracy_avg'].append(self.top5.avg)
+        self.batch_history["top1_accuracy"].append(self.top1.val)
+        self.batch_history["top1_accuracy_avg"].append(self.top1.avg)
+        self.batch_history["top5_accuracy"].append(self.top5.val)
+        self.batch_history["top5_accuracy_avg"].append(self.top5.avg)
 
     def update_epoch(self):
-        self.epoch_history['mode'].append(self.mode)
-        self.epoch_history['data_time'].append(self.data_time.avg)
-        self.epoch_history['loss'].append(self.losses.avg)
-        self.epoch_history['batch_time'].append(self.batch_time.avg)
-        self.epoch_history['top1_accuracy'].append(self.top1.avg)
-        self.epoch_history['top5_accuracy'].append(self.top5.avg)
-
-    def enable_logging(self):
-        raise NotImplemented
-    
-    def load_logging_checkpoint(self):
-        raise NotImplemented
+        self.epoch_history["mode"].append(self.mode)
+        self.epoch_history["data_time"].append(self.data_time.avg)
+        self.epoch_history["loss"].append(self.losses.avg)
+        self.epoch_history["batch_time"].append(self.batch_time.avg)
+        self.epoch_history["top1_accuracy"].append(self.top1.avg)
+        self.epoch_history["top5_accuracy"].append(self.top5.avg)
+        

@@ -154,7 +154,17 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
-        train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, epoch, device, args)
+        train(
+            train_loader,
+            model,
+            criterion,
+            optimizer,
+            scheduler,
+            metrics_engine,
+            epoch,
+            device,
+            args,
+        )
         metrics_engine.update_epoch()
 
         acc1 = validate(val_loader, model, criterion, metrics_engine, args, epoch)
@@ -178,11 +188,21 @@ def main_worker(gpu, ngpus_per_node, args):
                     "epoch_history": metrics_engine.epoch_history,
                 },
                 is_best,
-                pathlib.Path(args.output_parent_dir, folder_name)
+                pathlib.Path(args.output_parent_dir, folder_name),
             )
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, epoch, device, args):
+def train(
+    train_loader,
+    model,
+    criterion,
+    optimizer,
+    scheduler,
+    metrics_engine,
+    epoch,
+    device,
+    args,
+):
     metrics_engine.set_mode("train")
     metrics_engine.reset_metrics()
     metrics_engine.configure_progress_meter(len(train_loader), epoch)
@@ -208,7 +228,9 @@ def train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, 
         optimizer.step()
 
         scheduler.step()
-        metrics_engine.update_batch(data_time, loss.item(), time.time() - end, output, target)
+        metrics_engine.update_batch(
+            data_time, loss.item(), time.time() - end, output, target
+        )
         end = time.time()
 
         if i % args.print_freq == 0:
@@ -218,7 +240,14 @@ def train(train_loader, model, criterion, optimizer, scheduler, metrics_engine, 
 def validate(val_loader, model, criterion, metrics_engine, args, epoch=None):
     metrics_engine.set_mode("validate")
     metrics_engine.reset_metrics()
-    metrics_engine.configure_progress_meter(len(val_loader) + (args.distributed and (len(val_loader.sampler) * args.world_size < len(val_loader.dataset))), epoch)
+    metrics_engine.configure_progress_meter(
+        len(val_loader)
+        + (
+            args.distributed
+            and (len(val_loader.sampler) * args.world_size < len(val_loader.dataset))
+        ),
+        epoch,
+    )
 
     use_accel = not args.no_accel and torch.accelerator.is_available()
 
@@ -246,7 +275,9 @@ def validate(val_loader, model, criterion, metrics_engine, args, epoch=None):
                 output = model(images)
                 loss = criterion(output, target)
 
-                metrics_engine.update_batch(data_time, loss.item(), time.time() - end, output, target)
+                metrics_engine.update_batch(
+                    data_time, loss.item(), time.time() - end, output, target
+                )
 
                 end = time.time()
 

@@ -122,7 +122,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     criterion = {
         task.name: task.create_criterion().to(device) 
-        for task in learning_tasks_list
+        for task in model.learning_tasks_list
     }
 
     total_steps = len(train_loader) * args.epochs

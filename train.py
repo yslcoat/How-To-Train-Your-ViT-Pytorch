@@ -11,7 +11,6 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
@@ -21,11 +20,13 @@ from utils.training_utils import (
     save_checkpoint,
     load_checkpoint,
 )
-from model_utils import configure_multi_gpu_model
+from model_utils import (
+    configure_multi_gpu_model,
+    create_model,
+)
 from utils.data_utils import build_data_loaders
 from input_parser import build_config
 from metrics_utils import MetricsEngine
-from models import create_model
 
 logger = logging.getLogger()
 best_acc1 = 0
@@ -119,7 +120,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     train_loader, val_loader, train_sampler, _ = build_data_loaders(args)
 
-    criterion = nn.CrossEntropyLoss().to(device)
+    criterion = {
+        task.name: task.create_criterion().to(device) 
+        for task in learning_tasks_list
+    }
 
     total_steps = len(train_loader) * args.epochs
 

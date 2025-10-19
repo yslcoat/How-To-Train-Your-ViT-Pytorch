@@ -1,34 +1,41 @@
+import torch
 import torch.nn as nn
 import torchvision.models as torch_models
-from vit_pytorch import ViT
 
-MODEL_REGISTRY = {
-    "resnet18": torch_models.resnet18,
-    "resnet50": torch_models.resnet50,
-    "vgg16": torch_models.vgg16,
-    "lucidrain_vit": ViT,
-}
+from einops import repeat
+
+from vit_pytorch import ViT as LucidrainViTBase
 
 
-def create_model(args):
-    model_constructor = MODEL_REGISTRY.get(args.arch)
+class LucidrainViT(LucidrainViTBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.mlp_heads = nn.ModuleDict({})
+        self.mlp_head = nn.Identity() # Overwrite the original self.mlp_head in the ViT. Use nn.Identity instead of None just incase some pytorch logic wants modules at not None.
 
-    if not model_constructor:
-        raise ValueError(f"Model {args.arch} not supported.")
+        self.learning_task_list = kwargs.pop('learning_tasks')
 
-    if args.arch == "lucidrain_vit":
-        model = model_constructor(
-            image_size=args.image_size,
-            patch_size=args.patch_size,
-            num_classes=args.num_classes,
-            dim=args.dim,
-            depth=args.depth,
-            heads=args.heads,
-            mlp_dim=args.mlp_dim,
-            dropout=args.dropout,
-            emb_dropout=args.emb_dropout,
-        )
-    else:
-        model = model_constructor(pretrained=args.pretrained)
+        for learning_task in self.learning_task_list:
+            self.mlp_heads.update(learning_task.name, nn.Linear(self.dim, learning_task.output_layer_shape))
 
-    return model
+    def forward(self, img):
+        x = self.to_patch_embedding(img)
+        b, n, _ = x.shape
+
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b = b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+        x = self.dropout(x)
+
+        x = self.transformer(x)
+
+        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+
+        x = self.to_latent(x)
+
+        outputs = {}
+        for task_name, head in self.mlp_heads.items():
+            outputs[task_name] = head(x)
+
+        return outputs

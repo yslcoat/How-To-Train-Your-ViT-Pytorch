@@ -1,7 +1,8 @@
 import argparse
 import pathlib
+import json
 
-from models import MODEL_REGISTRY
+from model_utils import MODEL_REGISTRY
 
 
 def build_config():
@@ -150,6 +151,13 @@ def build_config():
     )
     parser.add_argument(
         "--dummy", action="store_true", help="use fake data to benchmark"
+    )
+    parser.add_argument(
+        "--learning-tasks",
+        type=json.loads,
+        default='[{"type": "classification", "name": "primary_classification", "n_classes": 1000}]',
+        help="JSON string defining a list of learning tasks. "
+        'Example: \'[{"type": "classification", "name": "task1", "n_classes": 10}, ...]\'',
     )
 
     # Model configs

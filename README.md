@@ -12,12 +12,13 @@ This repository extends the official [PyTorch ImageNet training example](https:/
 * **Augmentation**
     * **Mixup**
     * **RandAugment**
-* **Distributed Training**: Robust support for Distributed Data Parallel (DDP) and multi-processing on single or multiple nodes.
+* **Distributed Training (Training on muiltiple GPUs)**: Support for Distributed Data Parallel (DDP) and multi-processing on single or multiple nodes.
 * **Experiment Tracking**: Includes utilities for saving checkpoints, inspecting training history (`inspect_history.py`), and running inference (`predict.py`).
 
-## Usage
+## Data
+Imagenet can be downloaded from here: https://www.kaggle.com/competitions/imagenet-object-localization-challenge/data . Its 167GB so it takes some time to download. After you download the data you need to unzip it as well, this will also take some time. The training data is already structured as the dataclass in data_utils.py expects it to be, however the images in the validation folder is not grouped by their classes yet. To group the images in the validation folder navigate to the validation folder in your terminal and run `wget -qO- https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh | bash` in your terminal. This will automatically sort the data. 
 
-### Quick Start
+## Quick Start
 You can use the provided shell scripts to start a default training run:
 ```bash
 # Linux / Mac
@@ -25,3 +26,10 @@ You can use the provided shell scripts to start a default training run:
 
 # Windows
 ./default_train.bat
+```
+Alternatively: `python train.py --data "path/to/rootdir/of/data" --arch "lucidrain_vit" --epochs 36 --batch-size 256 --output_parent_dir "path/to/where/you/wanna/store/trained/model" --mixup `
+
+## Results from run with default arguments
+Training with 36 epochs should give results like these:
+![Loss Curve](figures/loss_curve.png)
+with training time on an RTX 5090 being roughly 1 day. 

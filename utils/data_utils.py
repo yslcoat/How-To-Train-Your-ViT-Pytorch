@@ -21,25 +21,30 @@ logger = logging.getLogger()
 class ImageNetDataset(Dataset):
     """
     Custom imagenet dataset class. Expects the following file structure
+
     root_dir/
-    ├── Data/
-    │   └── CLS-LOC /
-    │       ├── train /
-    |       |   └── class_folders /
-    |       |       └── filename.JPEG
-    |       |
-    │       └── val /...
-    │
-    └── Annotations/
-        └── CLS-LOC /
-            ├── train /
-            |   └── class_folders /
-            |       └── filename.xml
-            └── val /...
+    ├── ILSVRC/
+    │   ├── Data/
+    │   │   └── CLS-LOC/
+    │   │       ├── train/
+    │   │       │   └── <class_id>/
+    │   │       │       └── <filename>.JPEG
+    │   │       └── val/
+    │   │           └── <class_id>/
+    │   │               └── <filename>.JPEG
+    │   └── Annotations/
+    │       └── CLS-LOC/
+    │           ├── train/
+    │           │   └── <class_id>/
+    │           │       └── <filename>.xml
+    │           └── val/
+    │               └── <class_id>/
+    │                   └── <filename>.xml
+    └── LOC_synset_mapping.txt
     """
 
-    # img path: root folder -> Data -> CLS-LOC -> test/train/val -> class_folders -> filename.JPEG
-    # annotation path: root folder -> Annotations -> CLS-LOC -> train/val -> class_folders -> filename.xml
+    # img path: root folder -> ILSVRC -> Data -> CLS-LOC -> test/train/val -> class_folders -> filename.JPEG
+    # annotation path for obj detection: root folder -> ILSVRC -> Annotations -> CLS-LOC -> train/val -> class_folders -> filename.xml
     def __init__(
         self,
         root_dir: str,

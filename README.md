@@ -31,5 +31,7 @@ Alternatively: `python train.py --data "path/to/rootdir/of/data" --arch "lucidra
 
 ## Results from run with default arguments
 Training with 36 epochs should give results like these:
-![Loss Curve](figures/loss_curves.png)
+<p align="center">
+  <img src="figures/loss_curves.png" alt="Loss Curve" width="600"/>
+</p>
 with training time on an RTX 5090 being roughly 1 day.

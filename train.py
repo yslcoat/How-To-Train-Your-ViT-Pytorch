@@ -147,7 +147,7 @@ def main_worker(gpu, ngpus_per_node, args):
         load_checkpoint(args, device, model, optimizer, scheduler, metrics_engine)
 
     if args.evaluate:
-        validate(val_loader, model, criterion, args)
+        validate(val_loader, model, criterion, metrics_engine, args)
         return
 
     for epoch in range(args.start_epoch, args.epochs):

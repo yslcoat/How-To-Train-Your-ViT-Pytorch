@@ -1,12 +1,14 @@
 import torch.nn as nn
 import torchvision.models as torch_models
 from vit_pytorch import ViT
+from ledspit_vit import LedSpit
 
 MODEL_REGISTRY = {
     "resnet18": torch_models.resnet18,
     "resnet50": torch_models.resnet50,
     "vgg16": torch_models.vgg16,
     "lucidrain_vit": ViT,
+    "ledspit_vit": LedSpit,
 }
 
 
@@ -25,6 +27,21 @@ def create_model(args):
             depth=args.depth,
             heads=args.heads,
             mlp_dim=args.mlp_dim,
+            dropout=args.dropout,
+            emb_dropout=args.emb_dropout,
+        )
+    elif args.arch == "ledspit_vit":
+        model = model_constructor(
+            max_segments=args.max_segments,
+            reconstruction=args.reconstruction,
+            image_size=args.image_size,
+            patch_size=args.patch_size,
+            num_classes=args.num_classes,
+            dim=args.dim,
+            depth=args.depth,
+            heads=args.heads,
+            mlp_dim=args.mlp_dim,
+            channels=3,
             dropout=args.dropout,
             emb_dropout=args.emb_dropout,
         )

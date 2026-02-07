@@ -1,7 +1,7 @@
 #!/bin/sh
 n_epochs=90
-batch_size=256
-model_architecture="lucidrain_vit"
+batch_size=64
+model_architecture="ledspit_vit"
 data_path="/home/yslcoat/data/imagenet1k"
 model_save_dir="/home/yslcoat/trained_models"
 

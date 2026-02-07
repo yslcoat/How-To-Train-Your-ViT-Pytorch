@@ -194,6 +194,19 @@ def build_config():
         "--emb_dropout", type=float, default=0.1, help="dropout rate between [0, 1]"
     )
 
+    # LedSpit arguments
+    parser.add_argument(
+        "--max_segments",
+        type=int,
+        default=196,
+        help="Maximum number of superpixel segments (tokens) for LedSpit",
+    )
+    parser.add_argument(
+        "--reconstruction",
+        action="store_true",
+        help="Enable auxiliary reconstruction branch for LedSpit training",
+    )
+
     # Augmentations
     parser.add_argument(
         "--mixup",

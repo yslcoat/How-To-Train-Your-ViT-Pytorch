@@ -3,6 +3,7 @@
 A PyTorch implementation of the training framework presented in [**"How to train your ViT? Data, Augmentation, and Regularization in Vision Transformers"**](https://arxiv.org/abs/2106.10270).
 
 This repository extends the official [PyTorch ImageNet training example](https://github.com/pytorch/examples/tree/main/imagenet) by integrating the specific regularization, data augmentation, and optimization techniques required to train Vision Transformers.
+The default vit model used in this repository is implemented by https://github.com/lucidrains. Check out his work for more on vision transformers and different variations of vision transformers: https://github.com/lucidrains/vit-pytorch ! 
 
 ## Key Features
 

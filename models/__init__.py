@@ -1,4 +1,3 @@
-import torch.nn as nn
 import torchvision.models as torch_models
 from vit_pytorch import ViT
 from models.suit import SuiT
@@ -33,11 +32,11 @@ def create_model(args):
     elif args.arch == "suit":
         model = model_constructor(
             num_classes=args.num_classes,
-            emb_dim=args.suit_emb_dim,
-            n_heads=args.suit_n_heads,
-            attn_head_dim=args.suit_attn_head_dim,
-            mlp_dim=args.suit_mlp_dim,
-            n_blocks=args.suit_n_blocks,
+            emb_dim=args.dim,
+            n_heads=args.heads,
+            attn_head_dim=args.dim // args.heads,
+            mlp_dim=args.mlp_dim,
+            n_blocks=args.depth,
             base_dim=args.suit_base_dim,
             n_superpixels=args.suit_n_superpixels,
             compactness=args.suit_compactness,

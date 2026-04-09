@@ -5,6 +5,7 @@ from PIL import Image
 from typing import Tuple, Dict, List
 import xml.etree.ElementTree as ET
 
+import numpy as np
 import torch
 import torch.utils.data
 from torch.utils.data import Dataset, default_collate
@@ -135,12 +136,77 @@ class ImageNetDataset(Dataset):
                 return img, class_idx
 
 
+def _compute_slic(img_tensor: torch.Tensor, n_superpixels: int, compactness: float, n_iter: int) -> torch.Tensor:
+    img_np = img_tensor.permute(1, 2, 0).numpy()  # (H, W, C)
+    try:
+        from fast_slic import Slic  # type: ignore
+        img_u8 = (img_np.clip(0.0, 1.0) * 255).astype(np.uint8)
+        if img_u8.shape[-1] == 1:
+            img_u8 = np.concatenate([img_u8] * 3, axis=-1)
+        slic = Slic(num_components=n_superpixels, compactness=compactness, max_iter=n_iter)
+        sp_map = slic.iterate(img_u8)
+    except ImportError:
+        from skimage.segmentation import slic as sk_slic  # type: ignore
+        sp_map = sk_slic(
+            img_np.clip(0.0, 1.0),
+            n_segments=n_superpixels,
+            compactness=compactness,
+            max_num_iter=n_iter,
+            channel_axis=-1,
+            start_label=0,
+        )
+    return torch.from_numpy(sp_map).long()
+
+
+class SuiTDataset(Dataset):
+    """
+    Custom wrapper for ImageNetDataset to compute SLIC superpixel maps on the fly for SuiT training.
+    Only difference is that it returns segmentation masks in addition to the image and labels. 
+    """
+    def __init__(
+        self,
+        base_dataset: "ImageNetDataset",
+        pre_transform,
+        normalize: transforms.Normalize,
+        n_superpixels: int = 196,
+        compactness: float = 10.0,
+        n_slic_iter: int = 10,
+    ):
+        self.base_dataset = base_dataset
+        self.pre_transform = pre_transform
+        self.normalize = normalize
+        self.n_superpixels = n_superpixels
+        self.compactness = compactness
+        self.n_slic_iter = n_slic_iter
+
+    def __len__(self) -> int:
+        return len(self.base_dataset)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        img = self.base_dataset.load_image(index)
+        class_name = self.base_dataset.img_paths[index].parent.name
+        readable = self.base_dataset.readable_classes_dict[class_name]
+        label = self.base_dataset.class_to_idx[readable]
+
+        unnorm = self.pre_transform(img)           # (C, H, W) in [0, 1]
+        sp_map = _compute_slic(unnorm, self.n_superpixels, self.compactness, self.n_slic_iter)
+        img_tensor = self.normalize(unnorm)        # (C, H, W) normalized
+
+        return img_tensor, sp_map, label
+
+
 class MixUpCollator:
     def __init__(self, num_classes):
         self.mixup = v2.MixUp(num_classes=num_classes)
 
     def __call__(self, batch):
-        return self.mixup(*default_collate(batch))
+        collated = default_collate(batch)
+        if len(collated) == 3:
+            images, sp_maps, labels = collated
+            images, labels = self.mixup(images, labels)
+            return images, sp_maps, labels
+        images, labels = collated
+        return self.mixup(images, labels)
 
 
 def extract_readable_imagenet_labels(file_path: os.path) -> dict:
@@ -189,6 +255,8 @@ def find_classes(
 
 
 def build_data_loaders(args):
+    use_suit = getattr(args, "arch", None) == "suit"
+
     if args.dummy:
         logging.info("=> Dummy data is used!")
         train_dataset = datasets.FakeData(
@@ -203,31 +271,54 @@ def build_data_loaders(args):
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
 
-        train_dataset = ImageNetDataset(
-            args.data,
-            "train",
-            transforms.Compose(
-                [
+        if use_suit:
+            # Split transforms: augmentation + ToTensor first (for SLIC),
+            # then normalize. Both steps run inside the DataLoader worker.
+            train_pre = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.RandAugment(args.randaug_num_ops, args.randaug_magnitude),
+                transforms.ToTensor(),
+            ])
+            val_pre = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+            ])
+            train_base = ImageNetDataset(args.data, "train", transforms=None)
+            val_base   = ImageNetDataset(args.data, "val",   transforms=None)
+            train_dataset = SuiTDataset(
+                train_base, train_pre, normalize,
+                n_superpixels=args.suit_n_superpixels,
+                compactness=args.suit_compactness,
+                n_slic_iter=args.suit_n_slic_iter,
+            )
+            val_dataset = SuiTDataset(
+                val_base, val_pre, normalize,
+                n_superpixels=args.suit_n_superpixels,
+                compactness=args.suit_compactness,
+                n_slic_iter=args.suit_n_slic_iter,
+            )
+        else:
+            train_dataset = ImageNetDataset(
+                args.data,
+                "train",
+                transforms.Compose([
                     transforms.Resize((224, 224)),
                     transforms.RandAugment(args.randaug_num_ops, args.randaug_magnitude),
                     transforms.ToTensor(),
                     normalize,
-                ]
-            ),
-        )
-
-        val_dataset = ImageNetDataset(
-            args.data,
-            "val",
-            transforms.Compose(
-                [
+                ]),
+            )
+            val_dataset = ImageNetDataset(
+                args.data,
+                "val",
+                transforms.Compose([
                     transforms.Resize((224, 224)),
                     transforms.CenterCrop(224),
                     transforms.ToTensor(),
                     normalize,
-                ]
-            ),
-        )
+                ]),
+            )
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)

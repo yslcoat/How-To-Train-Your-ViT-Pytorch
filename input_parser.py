@@ -151,6 +151,9 @@ def build_config():
     parser.add_argument(
         "--dummy", action="store_true", help="use fake data to benchmark"
     )
+    parser.add_argument(
+        "--verbose", action="store_true", help="print model parameter count after creation"
+    )
 
     # Model configs
     # ViT
@@ -192,6 +195,66 @@ def build_config():
     )
     parser.add_argument(
         "--emb_dropout", type=float, default=0.1, help="dropout rate between [0, 1]"
+    )
+    # Suit args
+    # Architecture args (dim, depth, heads, mlp_dim, dropout, emb_dropout)
+    # are shared with the ViT args above.
+    parser.add_argument(
+        "--suit_base_dim",
+        type=int,
+        default=None,
+        help="SuiT conv stem output channels (default: emb_dim // 4)",
+    )
+    parser.add_argument(
+        "--suit_n_superpixels",
+        type=int,
+        default=196,
+        help="SuiT target number of SLIC superpixels",
+    )
+    parser.add_argument(
+        "--suit_compactness",
+        type=float,
+        default=10.0,
+        help="SuiT SLIC compactness (spatial vs colour trade-off)",
+    )
+    parser.add_argument(
+        "--suit_n_slic_iter",
+        type=int,
+        default=10,
+        help="SuiT number of SLIC iterations",
+    )
+    parser.add_argument(
+        "--suit_downsample",
+        type=int,
+        default=2,
+        help="SuiT conv stem stride",
+    )
+    parser.add_argument(
+        "--suit_pe_type",
+        type=str,
+        default="fourier",
+        choices=["fourier", "sinusoidal"],
+        help="SuiT positional encoding type",
+    )
+    parser.add_argument(
+        "--suit_pe_injection",
+        type=str,
+        default="concat",
+        choices=["concat", "add"],
+        help="SuiT positional encoding injection method",
+    )
+    parser.add_argument(
+        "--suit_aggregate",
+        type=str,
+        nargs="+",
+        default=["avg", "max"],
+        choices=["avg", "max", "min", "std"],
+        help="SuiT superpixel aggregation methods (space-separated, e.g. --suit_aggregate avg max)",
+    )
+    parser.add_argument(
+        "--suit_no_proj",
+        action="store_true",
+        help="SuiT: disable the projection layer after PE injection",
     )
 
     # Augmentations

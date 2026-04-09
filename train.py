@@ -112,6 +112,11 @@ def main_worker(gpu, ngpus_per_node, args):
     logging.info("=> creating model '{}'".format(args.arch))
     model = create_model(args)
 
+    if args.verbose:
+        n_params = sum(p.numel() for p in model.parameters())
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        logging.info(f"=> model parameters: {n_params:,} total, {n_trainable:,} trainable")
+
     if not use_accel:
         logging.info("using CPU, this will be slow")
     else:
@@ -210,13 +215,20 @@ def train(
     model.train()
 
     end = time.time()
-    for i, (images, target) in enumerate(train_loader):
+    for i, batch in enumerate(train_loader):
         data_time = time.time() - end
+
+        if len(batch) == 3:
+            images, sp_maps, target = batch
+            sp_maps = sp_maps.to(device, non_blocking=True)
+        else:
+            images, target = batch
+            sp_maps = None
 
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        output = model(images)
+        output = model(images, sp_maps) if sp_maps is not None else model(images)
         loss = criterion(output, target)
 
         # select dominant label for accuracy calculation when using mixup
@@ -260,19 +272,30 @@ def validate(val_loader, model, criterion, metrics_engine, args, epoch=None):
 
         with torch.no_grad():
             end = time.time()
-            for i, (images, target) in enumerate(loader):
+            for i, batch in enumerate(loader):
                 data_time = time.time() - end
                 i = base_progress + i
+
+                if len(batch) == 3:
+                    images, sp_maps, target = batch
+                else:
+                    images, target = batch
+                    sp_maps = None
+
                 if use_accel:
                     if args.gpu is not None and device.type == "cuda":
                         torch.accelerator.set_device_index(args.gpu)
                         images = images.cuda(args.gpu, non_blocking=True)
                         target = target.cuda(args.gpu, non_blocking=True)
+                        if sp_maps is not None:
+                            sp_maps = sp_maps.cuda(args.gpu, non_blocking=True)
                     else:
                         images = images.to(device)
                         target = target.to(device)
+                        if sp_maps is not None:
+                            sp_maps = sp_maps.to(device)
 
-                output = model(images)
+                output = model(images, sp_maps) if sp_maps is not None else model(images)
                 loss = criterion(output, target)
 
                 metrics_engine.update_batch(

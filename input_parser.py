@@ -154,6 +154,11 @@ def build_config():
     parser.add_argument(
         "--verbose", action="store_true", help="print model parameter count after creation"
     )
+    parser.add_argument(
+        "--autocast_bfloat16",
+        action="store_true",
+        help="use autocast for bfloat16 training"
+    )
 
     # Model configs
     # ViT
@@ -165,6 +170,18 @@ def build_config():
         type=int,
         default=16,
         help="size of patches. image_size must be divisible by patch size.",
+    )
+    parser.add_argument(
+        "--n_channels",
+        type=int, 
+        default=3, 
+        help="number of input channels.",
+    )
+    parser.add_argument(
+        "--attn_head_dim",
+        type=int,
+        default=64,
+        help="dimension of each attention head.",
     )
     parser.add_argument(
         "--num_classes", type=int, default=1000, help="number of classes in dataset."
@@ -195,66 +212,6 @@ def build_config():
     )
     parser.add_argument(
         "--emb_dropout", type=float, default=0.1, help="dropout rate between [0, 1]"
-    )
-    # Suit args
-    # Architecture args (dim, depth, heads, mlp_dim, dropout, emb_dropout)
-    # are shared with the ViT args above.
-    parser.add_argument(
-        "--suit_base_dim",
-        type=int,
-        default=None,
-        help="SuiT conv stem output channels (default: emb_dim // 4)",
-    )
-    parser.add_argument(
-        "--suit_n_superpixels",
-        type=int,
-        default=196,
-        help="SuiT target number of SLIC superpixels",
-    )
-    parser.add_argument(
-        "--suit_compactness",
-        type=float,
-        default=10.0,
-        help="SuiT SLIC compactness (spatial vs colour trade-off)",
-    )
-    parser.add_argument(
-        "--suit_n_slic_iter",
-        type=int,
-        default=10,
-        help="SuiT number of SLIC iterations",
-    )
-    parser.add_argument(
-        "--suit_downsample",
-        type=int,
-        default=2,
-        help="SuiT conv stem stride",
-    )
-    parser.add_argument(
-        "--suit_pe_type",
-        type=str,
-        default="fourier",
-        choices=["fourier", "sinusoidal"],
-        help="SuiT positional encoding type",
-    )
-    parser.add_argument(
-        "--suit_pe_injection",
-        type=str,
-        default="concat",
-        choices=["concat", "add"],
-        help="SuiT positional encoding injection method",
-    )
-    parser.add_argument(
-        "--suit_aggregate",
-        type=str,
-        nargs="+",
-        default=["avg", "max"],
-        choices=["avg", "max", "min", "std"],
-        help="SuiT superpixel aggregation methods (space-separated, e.g. --suit_aggregate avg max)",
-    )
-    parser.add_argument(
-        "--suit_no_proj",
-        action="store_true",
-        help="SuiT: disable the projection layer after PE injection",
     )
 
     # Augmentations

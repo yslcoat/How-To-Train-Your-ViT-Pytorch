@@ -36,6 +36,7 @@ class MSA(nn.Module):
         self.norm = nn.LayerNorm(dim)
 
         self.attend = nn.Softmax(dim=-1)
+        self.dropout_p = dropout
         self.dropout = nn.Dropout(dropout)
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=attn_bias)
@@ -54,12 +55,7 @@ class MSA(nn.Module):
             qkv,
         )
 
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-
-        attn = self.attend(dots)
-        attn = self.dropout(attn)
-
-        out = torch.matmul(attn, v)
+        out = nn.functional.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout_p if self.training else 0.0)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 

@@ -158,43 +158,6 @@ def _compute_slic(img_tensor: torch.Tensor, n_superpixels: int, compactness: flo
     return torch.from_numpy(sp_map).long()
 
 
-class SuiTDataset(Dataset):
-    """
-    Custom wrapper for ImageNetDataset to compute SLIC superpixel maps on the fly for SuiT training.
-    Only difference is that it returns segmentation masks in addition to the image and labels. 
-    """
-    def __init__(
-        self,
-        base_dataset: "ImageNetDataset",
-        pre_transform,
-        normalize: transforms.Normalize,
-        n_superpixels: int = 196,
-        compactness: float = 10.0,
-        n_slic_iter: int = 10,
-    ):
-        self.base_dataset = base_dataset
-        self.pre_transform = pre_transform
-        self.normalize = normalize
-        self.n_superpixels = n_superpixels
-        self.compactness = compactness
-        self.n_slic_iter = n_slic_iter
-
-    def __len__(self) -> int:
-        return len(self.base_dataset)
-
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, int]:
-        img = self.base_dataset.load_image(index)
-        class_name = self.base_dataset.img_paths[index].parent.name
-        readable = self.base_dataset.readable_classes_dict[class_name]
-        label = self.base_dataset.class_to_idx[readable]
-
-        unnorm = self.pre_transform(img)           # (C, H, W) in [0, 1]
-        sp_map = _compute_slic(unnorm, self.n_superpixels, self.compactness, self.n_slic_iter)
-        img_tensor = self.normalize(unnorm)        # (C, H, W) normalized
-
-        return img_tensor, sp_map, label
-
-
 class MixUpCollator:
     def __init__(self, num_classes):
         self.mixup = v2.MixUp(num_classes=num_classes)
@@ -255,7 +218,6 @@ def find_classes(
 
 
 def build_data_loaders(args):
-    use_suit = getattr(args, "arch", None) == "suit"
 
     if args.dummy:
         logging.info("=> Dummy data is used!")
@@ -266,59 +228,30 @@ def build_data_loaders(args):
             50000, (3, 224, 224), 1000, transforms.ToTensor()
         )
     else:
-        logging.info("loading data")
+        logging.info("Loading Imagenet1k dataset")
         normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
-
-        if use_suit:
-            # Split transforms: augmentation + ToTensor first (for SLIC),
-            # then normalize. Both steps run inside the DataLoader worker.
-            train_pre = transforms.Compose([
+        train_dataset = ImageNetDataset(
+            args.data,
+            "train",
+            transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.RandAugment(args.randaug_num_ops, args.randaug_magnitude),
                 transforms.ToTensor(),
-            ])
-            val_pre = transforms.Compose([
+                normalize,
+            ]),
+        )
+        val_dataset = ImageNetDataset(
+            args.data,
+            "val",
+            transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.CenterCrop(224),
                 transforms.ToTensor(),
-            ])
-            train_base = ImageNetDataset(args.data, "train", transforms=None)
-            val_base   = ImageNetDataset(args.data, "val",   transforms=None)
-            train_dataset = SuiTDataset(
-                train_base, train_pre, normalize,
-                n_superpixels=args.suit_n_superpixels,
-                compactness=args.suit_compactness,
-                n_slic_iter=args.suit_n_slic_iter,
-            )
-            val_dataset = SuiTDataset(
-                val_base, val_pre, normalize,
-                n_superpixels=args.suit_n_superpixels,
-                compactness=args.suit_compactness,
-                n_slic_iter=args.suit_n_slic_iter,
-            )
-        else:
-            train_dataset = ImageNetDataset(
-                args.data,
-                "train",
-                transforms.Compose([
-                    transforms.Resize((224, 224)),
-                    transforms.RandAugment(args.randaug_num_ops, args.randaug_magnitude),
-                    transforms.ToTensor(),
-                    normalize,
-                ]),
-            )
-            val_dataset = ImageNetDataset(
-                args.data,
-                "val",
-                transforms.Compose([
-                    transforms.Resize((224, 224)),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    normalize,
-                ]),
-            )
+                normalize,
+            ]),
+        )
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)

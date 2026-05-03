@@ -11,7 +11,6 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
@@ -218,18 +217,18 @@ def train(
     for i, batch in enumerate(train_loader):
         data_time = time.time() - end
 
-        if len(batch) == 3:
-            images, sp_maps, target = batch
-            sp_maps = sp_maps.to(device, non_blocking=True)
-        else:
-            images, target = batch
-            sp_maps = None
+        images, target = batch
 
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        output = model(images, sp_maps) if sp_maps is not None else model(images)
-        loss = criterion(output, target)
+        if args.autocast_bfloat16:
+            with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                output = model(images)
+                loss = criterion(output, target)
+        else:
+            output = model(images)
+            loss = criterion(output, target)
 
         # select dominant label for accuracy calculation when using mixup
         if args.mixup:
@@ -276,27 +275,24 @@ def validate(val_loader, model, criterion, metrics_engine, args, epoch=None):
                 data_time = time.time() - end
                 i = base_progress + i
 
-                if len(batch) == 3:
-                    images, sp_maps, target = batch
-                else:
-                    images, target = batch
-                    sp_maps = None
+                images, target = batch
 
                 if use_accel:
                     if args.gpu is not None and device.type == "cuda":
                         torch.accelerator.set_device_index(args.gpu)
                         images = images.cuda(args.gpu, non_blocking=True)
                         target = target.cuda(args.gpu, non_blocking=True)
-                        if sp_maps is not None:
-                            sp_maps = sp_maps.cuda(args.gpu, non_blocking=True)
                     else:
                         images = images.to(device)
                         target = target.to(device)
-                        if sp_maps is not None:
-                            sp_maps = sp_maps.to(device)
 
-                output = model(images, sp_maps) if sp_maps is not None else model(images)
-                loss = criterion(output, target)
+                if args.autocast_bfloat16:
+                    with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+                        output = model(images)
+                        loss = criterion(output, target)
+                else:
+                    output = model(images)
+                    loss = criterion(output, target)
 
                 metrics_engine.update_batch(
                     data_time, loss.item(), time.time() - end, output, target
